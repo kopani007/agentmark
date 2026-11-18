@@ -97,4 +97,7 @@ Agent ID is the access-control core of the product:
       2026-11-18 (Badge #1 minted, check-in #1 recorded)
 - [ ] Launch post on X; begin daily check-in promotion
 - [ ] Watch `totalMinted()` — Innovation eligibility needs ≥30 Agent ID addresses
-- [ ] Submit before 2026-12-09 08:00 UTC
+- [x] Submit before 2026-12-09 08:00 UTC — SUBMITTED 2026-11-18 20:12 WIB
+      ("Submitted Successfully" confirmation screen; reward address
+      0xeF28f36f0d19008056fD94A73131314A55C4ABf7, team OfficialCorpLtd)
+- [x] Demo video (58 s, narrated) — https://raw.githubusercontent.com/kopani007/agentmark/main/demo.mp4
