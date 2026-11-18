@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentMark — the badge for Agent ID holders</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         background:#0b0e14; color:#e6e9ef; margin:0; padding:24px; }
+  main { max-width:640px; margin:0 auto; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  .tag { color:#9aa4b2; margin:0 0 20px; }
+  .card { background:#121722; border:1px solid #232b3a; border-radius:12px;
+          padding:16px 18px; margin-bottom:14px; }
+  .row { display:flex; justify-content:space-between; padding:4px 0; }
+  .k { color:#9aa4b2; } .v { font-weight:600; }
+  button { background:#f0b90b; color:#111; border:0; border-radius:10px;
+           padding:12px 18px; font-size:16px; font-weight:700; cursor:pointer;
+           width:100%; margin-top:8px; }
+  button:disabled { background:#3a4356; color:#8b94a5; cursor:not-allowed; }
+  button.secondary { background:#1c2434; color:#e6e9ef; border:1px solid #2c3648; }
+  #status { min-height:20px; color:#c8d0dd; }
+  .err { color:#ff7a7a; } .ok { color:#7dd87d; }
+  code { word-break:break-all; font-size:12px; color:#9aa4b2; }
+  footer { color:#5f6b7d; font-size:12px; margin-top:24px; line-height:1.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🛡️ AgentMark</h1>
+  <p class="tag">A soulbound badge for Agent ID holders — plus a daily check-in.
+     Free to mint. The badge is non-transferable and simply marks that your
+     wallet holds an Agent ID. It carries no monetary value and promises no returns.</p>
+
+  <div class="card">
+    <div class="row"><span class="k">Wallet</span><span class="v" id="addr">not connected</span></div>
+    <div class="row"><span class="k">Holds an Agent ID</span><span class="v" id="holds">—</span></div>
+    <div class="row"><span class="k">Badge minted</span><span class="v" id="badge">—</span></div>
+    <div class="row"><span class="k">Check-ins (total / streak)</span><span class="v" id="stats">—</span></div>
+    <div class="row"><span class="k">Checked in today</span><span class="v" id="today">—</span></div>
+    <div class="row"><span class="k">Badges minted overall</span><span class="v" id="total">—</span></div>
+  </div>
+
+  <button id="connect">Connect wallet</button>
+  <button id="mint" disabled>Mint my badge (free)</button>
+  <button id="checkin" class="secondary" disabled>Check in today</button>
+  <p id="status"></p>
+
+  <footer>
+    How it works: this page talks to your own wallet's injected provider —
+    nothing else. There is no account, no sign-in code, and no server holding
+    your session. Every action is a transaction you review and confirm in
+    your wallet yourself; the badge contract charges nothing (you only pay
+    the network's gas). Agent ID status is read live from the Agent ID
+    contract on BNB Chain (56).<br>
+    Badge contract: <code id="contractAddr"></code><br>
+    Agent ID contract: <code>0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F</code>
+  </footer>
+</main>
+
+<script>
+"use strict";
+// ---- Config -------------------------------------------------------------
+// AgentMarkBadge is deployed via CREATE2 (CreateX factory) from
+// officialcorpltd.ai, so this address is final and was fixed before launch.
+const BADGE_ADDRESS = "0xBC682D5CF1aD8fFAE05BA119cf88BD6EDE75267C";
+const AGENT_ID_ADDRESS = "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F";
+const BSC_CHAIN_ID = "0x38"; // 56
+
+// ---- Function selectors (verified against the compiled contracts) -----
+const SEL = {
+  balanceOf:      "0x70a08231", // balanceOf(address)        — on Agent ID
+  isAgentIdHolder:"0xda0c34b0", // isAgentIdHolder(address)  — on badge
+  hasBadge:       "0x5e50864f", // hasBadge(address)
+  tokenIdOf:      "0x773c02d4", // tokenIdOf(address)
+  checkInStats:   "0xffe27ec4", // checkInStats(address) -> 4 x uint256
+  checkedInToday: "0xf47f9168", // checkedInToday(address)
+  totalMinted:    "0xa2309ff8", // totalMinted()
+  mintBadge:      "0xda1b3cb0", // mintBadge()
+  checkIn:        "0x183ff085"  // checkIn()
+};
+
+const $ = (id) => document.getElementById(id);
+let account = null;
+
+$("contractAddr").textContent = BADGE_ADDRESS;
+
+function setStatus(msg, cls) {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = cls || "";
+}
+function encAddr(a) { return a.toLowerCase().replace("0x", "").padStart(64, "0"); }
+function wordToBigInt(hex, idx) {
+  if (!hex || hex === "0x" || hex.length < 2 + (idx + 1) * 64) return 0n;
+  return BigInt("0x" + hex.slice(2 + idx * 64, 2 + (idx + 1) * 64));
+}
+async function call(to, data) {
+  const res = await window.ethereum.request({
+    method: "eth_call", params: [{ to, data }, "latest"]
+  });
+  return res;
+}
+async function refresh() {
+  if (!account) return;
+  const holds = wordToBigInt(await call(BADGE_ADDRESS, SEL.isAgentIdHolder + encAddr(account)), 0) === 1n
+    || wordToBigInt(await call(AGENT_ID_ADDRESS, SEL.balanceOf + encAddr(account)), 0) > 0n;
+  const has = wordToBigInt(await call(BADGE_ADDRESS, SEL.hasBadge + encAddr(account)), 0) === 1n;
+  const stats = await call(BADGE_ADDRESS, SEL.checkInStats + encAddr(account));
+  const total = wordToBigInt(stats, 0), streak = wordToBigInt(stats, 1);
+  const today = wordToBigInt(await call(BADGE_ADDRESS, SEL.checkedInToday + encAddr(account)), 0) === 1n;
+  const overall = wordToBigInt(await call(BADGE_ADDRESS, SEL.totalMinted), 0);
+
+  $("holds").textContent = holds ? "yes" : "no";
+  $("badge").textContent = has ? "yes" : "no";
+  $("stats").textContent = total.toString() + " / " + streak.toString();
+  $("today").textContent = today ? "yes" : "no";
+  $("total").textContent = overall.toString();
+  $("mint").disabled = !(holds && !has);
+  $("checkin").disabled = !(holds && has && !today);
+}
+async function ensureBsc() {
+  const chain = await window.ethereum.request({ method: "eth_chainId" });
+  if (chain !== BSC_CHAIN_ID) {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain", params: [{ chainId: BSC_CHAIN_ID }]
+    });
+  }
+}
+$("connect").onclick = async () => {
+  try {
+    if (!window.ethereum) {
+      setStatus("No injected wallet found. Open this page inside your wallet's dApp browser.", "err");
+      return;
+    }
+    await ensureBsc();
+    const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+    account = accs[0];
+    $("addr").textContent = account.slice(0, 6) + "…" + account.slice(-4);
+    setStatus("Connected.", "ok");
+    await refresh();
+  } catch (e) { setStatus("Connect failed: " + (e.message || e), "err"); }
+};
+async function send(data, label) {
+  try {
+    setStatus(label + " — confirm it in your wallet…");
+    const tx = await window.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from: account, to: BADGE_ADDRESS, data }]
+    });
+    setStatus(label + " sent: " + tx, "ok");
+    setTimeout(refresh, 4000);
+  } catch (e) { setStatus(label + " failed: " + (e.message || e), "err"); }
+}
+$("mint").onclick = () => send(SEL.mintBadge, "Mint");
+$("checkin").onclick = () => send(SEL.checkIn, "Check-in");
+if (window.ethereum) {
+  window.ethereum.on("accountsChanged", () => location.reload());
+  window.ethereum.on("chainChanged", () => location.reload());
+}
+</script>
+</body>
+</html>
