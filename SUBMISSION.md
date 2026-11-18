@@ -35,13 +35,10 @@ Verification status:
 
 - **Sourcify: EXACT MATCH** (creation + runtime bytecode), verified 2026-11-18 —
   https://sourcify.dev/#/lookup/0xBC682D5CF1aD8fFAE05BA119cf88BD6EDE75267C
-- **BscScan: not yet verified directly on BscScan.** No BscScan API key is available
-  to the team yet, and BscScan does not display Sourcify matches on its contract
-  page. To finish BscScan verification, either (a) create a free BscScan account,
-  generate an API key, and re-run verification via the API (compiler: solc
-  v0.8.24+commit.e11b9ed9, optimizer 200 runs, constructor args as deployed), or
-  (b) submit the public web form at https://bscscan.com/verifyContract manually
-  (no account needed, but the form is gated by a human-verification CAPTCHA).
+- **BscScan: VERIFIED** (2026-11-18, submitted by the project owner from his own
+  device via the public web form — the automated browser route was blocked by
+  Cloudflare Turnstile). Contract page:
+  https://bscscan.com/address/0xBC682D5CF1aD8fFAE05BA119cf88BD6EDE75267C#code
 
 ## What the project does
 
@@ -91,9 +88,8 @@ Agent ID is the access-control core of the product:
       `(0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F, https://agentmark.officialcorpltd.workers.dev/metadata/)`
       via CreateX `deployCreate2` — deployed at
       `0xBC682D5CF1aD8fFAE05BA119cf88BD6EDE75267C`, tx `0xade61c6c…a9c2`
-- [x] Verify source — Sourcify exact match (link above). BscScan direct
-      verification still open: needs a BscScan API key or a manual web-form
-      submission (see verification status above)
+- [x] Verify source — Sourcify exact match (link above) AND BscScan verified
+      2026-11-18 (owner-submitted web form)
 - [x] Push this repo public — https://github.com/kopani007/agentmark (LICENSE included)
 - [x] Host `web/index.html` with the final address filled in — LIVE at the URL above
       (Worker also serves `/badge.png` and `/metadata/<tokenId>`)
